@@ -30,6 +30,28 @@ function RES = simulator(config)
 		config.tmax_phase = 1000;
 	end
 
+	if ~isfield(config, 'AbsTol') || isempty(config.AbsTol)
+		% Default individuato da un test di sensitivita' AbsTol/RelTol
+		% (griglia 2D AbsTol/RelTol in {1e-6,1e-8,1e-10} su
+		% input/validation_test, poi affinata su RelTol in
+		% {1e-6,5e-7,1e-7,5e-8,1e-8} ad AbsTol fisso, confrontando contro il
+		% run piu' stretto come riferimento). Risultato: RelTol domina la
+		% convergenza, AbsTol e' quasi ininfluente nel range testato (le
+		% grandezze di stato sono su scala ~1e6-1e7 m / km/s). Il vincolo
+		% piu' stringente e' il delta-v propulsivo accumulato
+		% (RES.theDV_Prop, integrale trapezoidale post-hoc sensibile alla
+		% spaziatura dei passi accettati): resta entro 0.1 m/s solo da
+		% RelTol=1e-8 in giu' (1e-7/5e-7/5e-8 falliscono su questo pur con
+		% quota/velocita'/tempo gia' convergenti). 1e-8/1e-8 e' quindi il
+		% valore piu' largo (economico, ~600 passi vs ~1100 per 1e-10) che
+		% rispetta tutte le soglie fisiche (quota apogeo <1 m, |v| <0.1 m/s,
+		% t finale <0.01 s, delta-v <0.1 m/s).
+		config.AbsTol = 1e-8;
+	end
+	if ~isfield(config, 'RelTol') || isempty(config.RelTol)
+		config.RelTol = 1e-8;
+	end
+
 	% -------------------------------------------------------------------
 	% 2. Fase 0 (Lift-off): NON simulata.
 	%    Calcolo del propellente da bruciare per raggiungere il trigger di
@@ -88,7 +110,7 @@ function RES = simulator(config)
 		event_fun = @(t, y) phase_event(t, y, other, phase);
 
 		% --- 3e. Integrazione ODE a passo variabile ------------------
-		ode_opts = odeset('Events', event_fun, 'RelTol', 1e-8, 'AbsTol', 1e-8);
+		ode_opts = odeset('Events', event_fun, 'RelTol', config.RelTol, 'AbsTol', config.AbsTol);
 		tspan    = [t_start, t_start + config.tmax_phase];
 
 		[t_ph, y_ph, te, ye, ie] = ode45(@(t, y) eom(t, y, other), ...
