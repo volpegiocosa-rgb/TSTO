@@ -44,20 +44,40 @@ function uIn = guidance(MIS, ENV, GUI, t, pos, vel, AoA, relative_speed, phase)
 			uIn          = GUI.InOl * uOl;
 
 		case 6 % insertion in transfer orbit
-			% yaw to reach target plane
+			% Riferimento = direzione della velocita' relativa nel frame Ol
+			% (come case {4,5}: relative_speed e' nel frame In, va ruotato
+			% in Ol prima di estrarne pitch/yaw con vect2angleOl). NON
+			% eval_fpa/setOl diretti: eval_fpa e' un FPA "locale" (rispetto
+			% alla verticale del veicolo nella sua posizione corrente),
+			% incompatibile se usato come pitch assoluto nel frame Ol
+			% (ancorato al sito di lancio, congelato a t0): la discrepanza
+			% cresce con la distanza downrange dal sito di lancio e
+			% comandava un tuffo (pitch fino a -17deg) invece
+			% dell'inserimento. Stesso principio per lo yaw: il PID di
+			% piano corregge uno scostamento rispetto a yaw_rel (il
+			% tracciamento nominale della velocita' relativa), non lo
+			% sostituisce (altrimenti yaw diverge verso l'azimut zero
+			% anziche' seguire la traiettoria, come osservato: -65deg).
+			uOl_rel              = vers(GUI.InOl.' * relative_speed);
+			[pitch_rel, yaw_rel] = vect2angleOl(uOl_rel);
+
+			% yaw: tracciamento nominale + correzione controllore di piano
 			actual_orbital_inclination = eval_inclination(pos, vel, ENV);
-			target_orbital_inclination = MIS.target_orbital_inclination;  
+			target_orbital_inclination = MIS.target_orbital_inclination;
 			error_orbital_inclination  = target_orbital_inclination ...
-			                             - actual_orbital_inclination;      
+			                             - actual_orbital_inclination;
 			kp = GUI.plane_controller(1);
 			kd = GUI.plane_controller(2);
 			ki = GUI.plane_controller(3);
-			yaw = PID_actuation(kp, kd, ki, error_orbital_inclination);
-			% pitch
-			flight_path_angle = eval_fpa(pos, vel);
-			dt                = t - GUI.insertion_starting;
-			AoA_cmd           = GUI.AoA_rate * dt;
-			pitch             = flight_path_angle + AoA_cmd;
+			yaw = yaw_rel + PID_actuation(kp, kd, ki, error_orbital_inclination);
+
+			% pitch: tracciamento nominale + AoA comandato crescente (per
+			% l'inserimento, alza progressivamente il pitch sopra la
+			% velocita' relativa)
+			dt      = t - GUI.insertion_starting;
+			AoA_cmd = GUI.AoA_rate * dt;
+			pitch   = pitch_rel + AoA_cmd;
+
 			% build the vector
 			uOl = setOl(pitch, yaw);
 			uIn = GUI.InOl * uOl;

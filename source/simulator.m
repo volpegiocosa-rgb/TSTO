@@ -111,8 +111,18 @@ function RES = simulator(config)
 		y_start = y_ph(end, :).';
 
 		% --- 3g. Aggiornamento memoria di guida (ultimo assetto) -----
-		% Serve al case 3 di guidance.m (GUI.last_pitch/last_yaw = assetto
-		% comandato all'uscita dalla fase appena conclusa).
+		% Serve al case 3 di guidance.m: GUI.last_pitch/last_yaw = assetto
+		% comandato al termine della fase appena conclusa (istante
+		% t_start, stesso istante di inizio della fase successiva: e'
+		% quindi davvero "l'ultimo timestep noto", non un valore
+		% arbitrariamente vecchio). Va PERO' notato che, una volta letto
+		% da guidance.m/phase_event.m dentro la fase successiva, resta
+		% congelato per l'intera durata di quella fase (non puo' essere
+		% aggiornato ad ogni passo interno di ode45: 'other' e' catturato
+		% per valore nella closure, nessuna variabile globale, CLAUDE.md
+		% §4). E' quindi un riferimento "quasi-statico" fissato una
+		% tantum all'inizio fase, usato in case 3 solo per decidere il
+		% segno (costante per tutta la fase) di pitch_rate.
 		relative_speed_end = eval_relative_speed(y_start(1:3), y_start(4:6), other.ENV.omega_E);
 		u_end = guidance(other.MIS, other.ENV, other.GUI, t_start, ...
 		                  y_start(1:3), y_start(4:6), 0, relative_speed_end, phase);

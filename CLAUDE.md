@@ -236,8 +236,8 @@ Il fasatore seleziona `MOT(stage)` in base a `GUI.active_stage`.
 |------|-------------|
 | `GUI.zkick` | Quota di fine vertical-rise (trigger fase 1) |
 | `GUI.InOl` | Matrice di rotazione dal frame `Ol` al frame `In` |
-| `GUI.last_pitch` | Ultimo valore di pitch di comando [rad] |
-| `GUI.last_yaw` | Ultimo valore di yaw di comando [rad] |
+| `GUI.last_pitch` | Ultimo valore di pitch di comando [rad] (snapshot al confine di fase, congelato per l'intera fase successiva: vedi `simulator.m` §3g) |
+| `GUI.last_yaw` | Ultimo valore di yaw di comando [rad] (idem) |
 | `GUI.launch_azimuth` | Azimut di lancio imposto (usato come yaw) [rad] |
 | `GUI.active_stage` | Stadio attivo corrente (`1` o `2`); seleziona `MOT(stage)` in `eom.m`. Inizializzato a 1 in `interface.m`, portato da 1 a 2 da `simulator.m` a fine fase 4 (separazione 1° stadio per esaurimento propellente) |
 | `GUI.pitch_over_starting` | Istante di inizio della fase di pitch over [s] |
