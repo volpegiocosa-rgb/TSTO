@@ -1,0 +1,4 @@
+name value unit note
+AZ 1.5707963 rad azimut_di_lancio_(90deg_verso_EST)
+timeHS_Sep_control 100 s tempo_min_controllo_separazione_fairing_sintetico
+flux_HS_Sep 1000 W_m2 flusso_soglia_separazione_fairing_sintetico

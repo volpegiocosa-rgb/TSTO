@@ -1,0 +1,4 @@
+name value unit note
+apogee_altitude_target 400000 m MIS.apogee_altitude_target_(LEO_400km)
+perigee_altitude_target 200000 m MIS.perigee_altitude_target_(200km)
+target_orbital_inclination 0.49741883 rad MIS.target_orbital_inclination_(28.5deg)

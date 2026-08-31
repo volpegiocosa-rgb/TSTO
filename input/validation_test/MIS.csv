@@ -1,0 +1,4 @@
+name value unit note
+apogee_altitude_target 200000 m LEO_200km_sintetico_(trigger_fase6)
+perigee_altitude_target 150000 m perigeo_150km_sintetico
+target_orbital_inclination 0.0 rad lancio_equatoriale_verso_EST_(inclinazione_~0)
