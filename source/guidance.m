@@ -25,7 +25,8 @@ function uIn = guidance(MIS, ENV, GUI, t, pos, vel, AoA, relative_speed, phase)
 			uIn   = GUI.InOl * uOl;
 
 		case 3  % transition to gravity turn
-			[incidence, ~] = eval_aerodynamic_angle(relative_speed, GUI.last_pitch, GUI.last_yaw, GUI.InOl);
+			u_ref = GUI.InOl * setOl(GUI.last_pitch, GUI.last_yaw);
+			[incidence, ~] = eval_aerodynamic_angle(relative_speed, pos, u_ref);
 			pitch_rate = -sign(incidence) * GUI.pitch_rate_transition;
 			dt    = t - GUI.transition_starting;
 			pitch = pitch_rate * dt + GUI.pitch_at_transition;

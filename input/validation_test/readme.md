@@ -1,58 +1,29 @@
-# validation_test — dataset di input sintetico (CLAUDE.md §10)
+# validation_test — mirror di `reference_LV` (CLAUDE.md §10)
 
-Caso di test **secondario**, interamente sintetico (nessuna fonte esterna): un
-lanciatore a due stadi a liquido molto più piccolo del `reference_LV`, per
-verificare il codice su ordini di grandezza diversi (§10.1: "valori
-fisicamente plausibili", non necessariamente ottimi).
+Caso di test **secondario**, ora **identico ai CSV di `reference_LV`** (Falcon
+9-like, Cape Canaveral SLC-40). Non è più un lanciatore sintetico separato:
+vedi `input/reference_LV/readme.md` per la descrizione di ogni file/valore.
 
-> ⚠️ Stessa convenzione di `reference_LV`: i CSV usano i nomi interni
-> (`ENV / AER / MOT / GUI / MIS`), non le struct del documento di interfaccia.
+> ⚠️ Motivo del cambio (decisione utente): la versione precedente di questo
+> dataset era **sintetica ed equatoriale** (`ENV.lat=ENV.lon=0`, `AZ=90°`,
+> `MIS.target_orbital_inclination=0`). Un lancio equatoriale verso EST giace
+> *per definizione* nel piano equatoriale (inclinazione naturale ≈ 0), già
+> uguale al target: il controllore di piano (`GUI.plane_controller` →
+> `PID_actuation.m`, usato solo in `guidance.m` case 6) non veniva **mai
+> esercitato**, perché il suo segnale di errore (`target -
+> actual_orbital_inclination`) restava sempre nullo. `RES.theInclination`
+> risultava quindi costantemente 0.00° — non per un bug, ma perché quel
+> dataset non poteva mai far emergere un eventuale controllore rotto.
+> `reference_LV` (lat=28.562°N, target=28.4999°) è invece un caso
+> **non-degenere**: l'inclinazione naturale del lancio verso EST da quella
+> latitudine differisce dal target, quindi in fase 6 il PID ha un errore
+> reale da correggere ed è verificabile che il codice reagisca.
 
 ## File
-
-### `LV.csv` — veicolo sintetico
-Valori per **singolo motore**. `M0=100000 kg` = `Minert1+Minert2+MProp1+MProp2+Mfairing`
-(4000+1000+70000+24500+500), verificato. T/W al liftoff (SL, 2 motori) ≈ 1.43.
-Burn stadio 1 ≈ `MProp1/(n_engine1·MR1)` = 70000/(2·237.9) ≈ 147 s.
-
-### `ENV.csv` — sito equatoriale sintetico
-`lat=lon=hpad=0` (caso limite: origine del frame `In` coincide col sito di
-lancio a t0). WGS84 standard per il resto.
-
-### `GUID.csv` — `AZ=90°` (lancio verso EST, equatoriale ⇒ inclinazione ≈ 0).
-
-### `GUIDANCE_VARS.csv` — set nominale, non ottimizzato
-Come per `reference_LV`: valori plausibili per far girare il test end-to-end,
-non una traiettoria ottima. **Non modificare senza ri-verificare**: il sistema
-guida (fase 3, transizione al gravity turn) è sensibile ai parametri vicino al
-punto in cui il segno di `pitch_rate` (deciso da `eval_aerodynamic_angle` in
-`guidance.m` case 3) si inverte — piccole variazioni di `pitch_at_transition`/
-`transition_starting` intorno a quella soglia possono cambiare drasticamente
-la traiettoria (osservato empiricamente durante la calibrazione: da un
-apogeo end-fase-4 di ~300 km a un crash quasi immediato, con un salto netto
-tra le due configurazioni). Non è stato necessario ritoccare questi valori
-per ottenere un'uscita di missione corretta: vedi `MIS.csv`.
-
-### `MIS.csv` — target di missione
-| Campo | Valore | Nota |
-|-------|--------|------|
-| `apogee_altitude_target` | 400000 m | trigger fase 6 |
-| `perigee_altitude_target` | 200000 m | |
-| `target_orbital_inclination` | 0.0 rad | lancio equatoriale verso EST |
-
-> Corretto da un refuso iniziale (400/200 invertiti in 200/150): con
-> `apogee_altitude_target=200000` l'apogeo osculante superava già i 200 km
-> **durante la fase 4** (gravity turn, prima ancora di iniziare la fase 6),
-> quindi l'event di fase 6 (che rileva solo un attraversamento dal basso,
-> `direction=1`) non poteva mai scattare — la missione proseguiva fino a
-> esaurire il margine di manovra e terminava per quota=0 (crash). Con il
-> target riallineato a 400 km (stessa convenzione di `reference_LV`), il
-> `GUIDANCE_VARS.csv` nominale invariato porta l'apogeo osculante da ~296 km
-> (fine fase 4) a 400 km esatti durante la fase 6, senza toccare i parametri
-> di guida.
-
-### `atmosphere.csv`, `aero_ascent.csv`
-Copiati verbatim da `reference_LV` (tabelle universali, non specifiche del veicolo).
+Copia verbatim (stesso contenuto, stesso formato) di `ENV.csv`, `GUID.csv`,
+`GUIDANCE_VARS.csv`, `LV.csv`, `MIS.csv`, `aero_ascent.csv`, `atmosphere.csv`
+da `reference_LV`. Per la descrizione campo per campo vedi
+`input/reference_LV/readme.md`.
 
 ## Esito atteso (ripetibile)
 Con i CSV di questa cartella, lanciando:
@@ -61,9 +32,35 @@ octave --no-gui --eval "addpath('source'); config.input_dir='input/validation_te
 ```
 si ottiene, verificato:
 - Attraversamento completo delle fasi 1→6 (nessun blocco), trigger corretti (nessun evento spurio).
-- Staging: `active_stage` 1→2 a fine fase 4 (t≈147 s), `RES.stage` coerente con la tabella unica CLAUDE.md §5.
+- Staging: `active_stage` 1→2 a fine fase 4 (t≈142 s), `RES.stage` coerente con la tabella unica CLAUDE.md §5.
 - Nessun `NaN`/numero immaginario in nessun campo di `RES`.
-- Massa monotona non crescente, quota sempre ≥0.
+- Massa monotona non crescente (con il salto atteso alla separazione 1° stadio+fairing), quota sempre ≥0.
 - **Chiusura di missione per apogeo raggiunto** (non crash, non esaurimento propellente):
-  fine simulazione a t≈357 s, quota≈365 km, massa≈20177 kg (ben sopra `Minert2+Mpayload`≈1000 kg),
-  apogeo osculante finale = 400.000 km = `MIS.apogee_altitude_target`.
+  fine simulazione a t≈239 s, quota≈267.5 km, massa≈100.3 t, apogeo osculante finale = 400.000 km = `MIS.apogee_altitude_target`.
+- `RES.theInclination`: parte da ≈28.40° (non 28.562°: è la latitudine
+  **geocentrica**, non geodetica, coerente con `geo2cart`/`eval_inclination.m`
+  su ellissoide WGS84 — vedi nota sotto) e resta pressoché costante nelle
+  fasi 1-5 (il thrust è sempre nel piano di lancio, `yaw` bloccato a
+  `GUI.launch_azimuth`: nessuna manovra fuori piano prevista prima della fase
+  6). In fase 6 il PID di piano (`error = target - actual`, qui ≈ +0.10°)
+  la muove nella direzione corretta (crescente verso il target), ma di
+  un'entità piccola (~0.0016° su 39 s di burn fase 6, dati GUIDANCE_VARS.csv
+  nominali): il target non viene raggiunto entro la finestra di missione.
+  **Non trattato come bug**: il verso della correzione è corretto e il
+  codice (`eval_inclination.m`, `guidance.m` case 6, `PID_actuation.m`) è
+  stato riletto e non presenta errori evidenti; l'entità ridotta può essere
+  dovuta a guadagni `plane_controller` non ottimizzati (§10.1: "set nominale,
+  non ottimizzato") o al tempo di burn insufficiente. Segnalato all'utente,
+  non corretto senza indicazione esplicita (i guadagni sono condivisi con
+  altri comportamenti di fase 6, es. l'AoA di inserimento).
+
+### Nota: latitudine geocentrica vs geodetica
+`eval_inclination.m` calcola `acos(h_z/|h|)` da `pos`/`vel` cartesiani
+(geometria pura, quindi intrinsecamente "geocentrica"). `ENV.lat` in
+`ENV.csv`/`geo2cart.m` è invece la latitudine **geodetica** (convenzione
+WGS84 standard). Sull'ellissoide WGS84 (schiacciamento `f`), la relazione è
+`tan(lat_geocentrica) = (1-f)² · tan(lat_geodetica)`: a 28.562° geodetici
+corrispondono 28.40° geocentrici — esattamente il valore osservato a inizio
+missione (corotazione pura, nessuna componente di velocità fuori dal piano
+di corotazione). Nessuna azione richiesta: è la geometria attesa per un
+ellissoide oblato, non una discrepanza fra `ENV.lat` letto e usato.

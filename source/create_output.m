@@ -58,6 +58,10 @@ function RES = create_output(T, Y, other, phase_track)
 	theNGV      = zeros(N, 1);
 	theDV_drag  = zeros(N, 1);
 	theDV_Prop  = zeros(N, 1);
+	theIncidence      = zeros(N, 1);
+	theSideslip       = zeros(N, 1);
+	theApogeeAltitude = zeros(N, 1);
+	theInclination    = zeros(N, 1);
 	theMass     = Y(:, 7);
 	Flag_HSSep  = false(N, 1);
 	Flag_MPLSep = false(N, 1);
@@ -137,6 +141,18 @@ function RES = create_output(T, Y, other, phase_track)
 		fpa     = eval_fpa(pos, vel);
 		fpa_rel = eval_fpa(pos, relative_speed);
 
+		% incidence/sideslip: componenti (piano di pitch / piano di yaw)
+		% dell'AoA totale tra l'assetto comandato CORRENTE (u) e la
+		% velocita' relativa, decomposte nel frame Vn (VNC, CLAUDE.md §6)
+		% ancorato al vento relativo (eval_aerodynamic_angle). NON
+		% proiettare su Ol e sottrarre pitch/yaw calcolati separatamente:
+		% introduce un bias di accoppiamento pitch/yaw (si veda commento in
+		% eval_aerodynamic_angle.m).
+		[incidence, sideslip] = eval_aerodynamic_angle(relative_speed, pos, u);
+
+		apogee_altitude = eval_apogee_altitude(pos, vel, ENV.mu, ENV.Req);
+		inclination     = eval_inclination(pos, vel, ENV);
+
 		theMdot(k)     = mass_flow_rate;
 		theAltitude(k) = lla(3);
 		theVREL_ECI(k, :) = relative_speed.';
@@ -155,6 +171,10 @@ function RES = create_output(T, Y, other, phase_track)
 		theFPARel(k)   = fpa_rel;
 		theFPA(k)      = fpa;
 		theNGV(k)      = acc_mag;
+		theIncidence(k)      = incidence;
+		theSideslip(k)       = sideslip;
+		theApogeeAltitude(k) = apogee_altitude;
+		theInclination(k)    = inclination;
 		stage(k)       = row_stage;
 		Flag_HSSep(k)  = (phase >= 5);   % fairing rilasciata con lo stadio 1 (fine fase 4)
 		Flag_MPLSep(k) = false;          % deployment payload non simulato (fuori scope)
@@ -220,6 +240,10 @@ function RES = create_output(T, Y, other, phase_track)
 	RES.theNGV      = theNGV;
 	RES.theDV_drag  = theDV_drag;
 	RES.theDV_Prop  = theDV_Prop;
+	RES.theIncidence      = theIncidence;
+	RES.theSideslip       = theSideslip;
+	RES.theApogeeAltitude = theApogeeAltitude;
+	RES.theInclination    = theInclination;
 	RES.theMass     = theMass;
 	RES.Flag_HSSep  = Flag_HSSep;
 	RES.Flag_MPLSep = Flag_MPLSep;

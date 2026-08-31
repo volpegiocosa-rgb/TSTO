@@ -136,6 +136,10 @@ La maggior parte degli output è contenuta nella struct `RES`, costruita da `cre
 | `RES.theNGV` | Velocità non gravitazionale | m/s | |
 | `RES.theDV_drag` | Delta-v da drag | m/s | |
 | `RES.theDV_Prop` | Delta-v propulsivo | m/s | |
+| `RES.theIncidence` | Incidence: componente in piano di pitch dell'AoA totale, rispetto all'assetto comandato corrente | rad | richiesto da `plot_list.md` |
+| `RES.theSideslip` | Sideslip: componente in piano di yaw dell'AoA totale, rispetto all'assetto comandato corrente | rad | richiesto da `plot_list.md` |
+| `RES.theApogeeAltitude` | Quota di apogeo dell'orbita osculante corrente | m | richiesto da `plot_list.md` |
+| `RES.theInclination` | Inclinazione orbitale osculante corrente | rad | richiesto da `plot_list.md` |
 | `RES.theMass` | Massa | kg | |
 | `RES.Flag_HSSep` | Flag separazione fairing | N/A | |
 | `RES.Flag_MPLSep` | Flag separazione payload | N/A | |

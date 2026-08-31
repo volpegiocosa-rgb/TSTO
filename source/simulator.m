@@ -49,6 +49,7 @@ function RES = simulator(config)
 	t_start = t0;
 	y_start = y0;
 	phase   = 1;
+	termination_reason = '';   % messaggio esplicito, valorizzato al break (§3h), passato a write_log.m
 
 	max_iterations = 12;   % rete di sicurezza anti-loop-infinito (6 fasi al piu' con 1 salto)
 	iteration = 0;
@@ -138,6 +139,7 @@ function RES = simulator(config)
 					case 1
 						phase = phase + 1;
 					case 2
+						termination_reason = 'END_CRASH';
 						break; % quota=0 -> stop
 					case 3
 						phase = 5;  % propellente1 esaurito in anticipo -> salta a fase 5
@@ -148,6 +150,7 @@ function RES = simulator(config)
 					case 1
 						phase = 5;
 					case 2
+						termination_reason = 'END_CRASH';
 						break;
 				end
 			case 5
@@ -156,12 +159,24 @@ function RES = simulator(config)
 					case 1
 						phase = 6;
 					case 2
+						termination_reason = 'END_CRASH';
 						break;
 				end
 			case 6
 				% eventi: [apogeo_target; quota=0; propellente2_esaurito]
 				% in ogni caso (successo, crash, propellente esaurito) la
-				% missione termina qui.
+				% missione termina qui: il messaggio esplicito distingue
+				% quale dei 3 event di phase_event.m (case 6) ha fermato
+				% l'integrazione, per write_log.m (nessuna deduzione a
+				% posteriori da soglie: e' l'indice 'fired' reale).
+				switch fired
+					case 1
+						termination_reason = 'END_APOGEE';
+					case 2
+						termination_reason = 'END_CRASH';
+					case 3
+						termination_reason = 'END_PROP2';
+				end
 				break;
 		end
 	end
@@ -172,6 +187,7 @@ function RES = simulator(config)
 	RES = create_output(T, Y, other, phase_track);
 
 	if ~isfield(config, 'silent') || ~config.silent
-		plotter(T, Y, RES);
+		plotter(T, Y, RES, config.input_dir);
+		write_log(T, Y, RES, termination_reason, config.input_dir);
 	end
 end

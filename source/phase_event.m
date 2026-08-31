@@ -51,8 +51,8 @@ function [value, isterminal, direction] = phase_event(t, y, other, phase) %#ok<I
 
 		case 3   % transizione al gravity turn: trigger = incidence == 0
 			relative_speed = eval_relative_speed(pos, y(4:6), ENV.omega_E);
-			[incidence, ~] = eval_aerodynamic_angle(relative_speed, ...
-			                  other.GUI.last_pitch, other.GUI.last_yaw, other.GUI.InOl);
+			u_ref = other.GUI.InOl * setOl(other.GUI.last_pitch, other.GUI.last_yaw);
+			[incidence, ~] = eval_aerodynamic_angle(relative_speed, pos, u_ref);
 			value      = [incidence; ...
 			              altitude_zero_ev; ...
 			              mass - dead_mass_stage1];
@@ -87,25 +87,4 @@ function [value, isterminal, direction] = phase_event(t, y, other, phase) %#ok<I
 		otherwise
 			error('phase_event:invalidPhase', 'Fase non valida: %g', phase);
 	end
-end
-
-
-function apogee_altitude = eval_apogee_altitude(pos, vel, mu, Req)
-	% eval_apogee_altitude  Quota di apogeo dell'orbita osculante corrente
-	%                       (ellisse/iperbole kepleriana istantanea), da
-	%                       energia specifica e momento angolare specifico.
-	%                       Approssimazione sferica (Req), coerente con la
-	%                       definizione di MIS.apogee_altitude_target.
-	r = norm(pos);
-	v = norm(vel);
-
-	energy = v^2 / 2 - mu / r;
-	a = -mu / (2 * energy);
-
-	h = cross(pos, vel);
-	e_vec = cross(vel, h) / mu - pos / r;
-	e = norm(e_vec);
-
-	apogee_radius = a * (1 + e);
-	apogee_altitude = apogee_radius - Req;
 end

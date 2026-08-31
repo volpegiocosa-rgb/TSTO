@@ -77,6 +77,7 @@ Il comando deve restituire **zero righe**. Qualsiasi match indica sintassi Octav
 - **`guidance.m`** — logica di guida; chiamata da `eom.m`.
 - **`create_output.m`** — dagli output di `eom.m` all'interno di `simulator.m` crea **gli output** previsti dalla **specifica di interfaccia**.
 - **`plotter.m`** — chiamato da `simulator.m`, crea i grafici se non è silenziato.
+- **`write_log.m`** — chiamato da `simulator.m`, crea la tabella `tab.out` come descritta da `log_tab.md` se non è silenziato.
 
 Flusso: `simulator.m` → `interface.m` (mapping input) → `eom.m` → `guidance.m` → `create_output.m` → `plotter.m`.
 
@@ -173,7 +174,10 @@ eom(t, y, other)                                                      -> dy
 simulator(config)                                                     -> RES
 guidance(MIS, ENV, GUI, t, pos, vel, AoA, relative_speed, phase)      -> uIn
 create_output(T, Y, other)                                            -> RES
-plotter(T, Y, RES)                                                    -> <!-- PLACEHOLDER -->
+plotter(T, Y, RES, input_dir)                                         -> genera i grafici descritti in `plot_list.md`,
+                                                                          salvati come PNG in `/output/<nome_cartella_input_dir>`
+write_log(T, Y, RES, termination_reason, input_dir)				  -> genera la tabella descritta `log_tab.md`,
+                                                                          salvati come TXT in `/output/<nome_cartella_input_dir>`							  
 ```
 
 **Regola di mapping**: il codice di calcolo (`eom.m`, `guidance.m`) usa **solo** i nomi interni
