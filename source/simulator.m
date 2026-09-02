@@ -1,4 +1,4 @@
-function RES = simulator(config)
+function [RES, other] = simulator(config)
 	% simulator  Fasatore della simulazione: gestisce una fase di volo dopo
 	%            l'altra chiamando l'integratore ODE su eom.m.
 	%            E' il punto di interfaccia con l'utente.
@@ -12,15 +12,37 @@ function RES = simulator(config)
 	%      fasi 7-8 istantanee (nessuna integrazione, CLAUDE.md §5)
 	%   4) create_output.m -> RES ; plotter.m -> grafici
 	%
-	% Input  : config (struct con almeno il campo:
-	%              config.input_dir  path alla cartella dei CSV di input
-	%          e opzioni di run, es. config.tmax_phase, config.silent)
-	% Output : RES (struct dei risultati; gli output seguono interface_specification.md)
+	% Input  : config (struct con:
+	%              config.input_dir  path alla cartella dei CSV di input;
+	%                                usato SOLO se config.other non e'
+	%                                fornito (letto da interface.m)
+	%              config.other      (opzionale) struct 'other' gia'
+	%                                costruita (es. da un main.m che ha
+	%                                chiamato interface.m una volta sola e
+	%                                poi passa 'other' a piu' run, come
+	%                                traj_problem.m nel loop dell'
+	%                                ottimizzatore DE): se presente, ha
+	%                                priorita' su config.input_dir e
+	%                                interface.m NON viene richiamata
+	%          e opzioni di run, es. config.tmax_phase, config.silent,
+	%          config.AbsTol, config.RelTol)
+	% Output : RES    (struct dei risultati; segue interface_specification.md)
+	%          other  (opzionale, struct ENV/AER/MOT/GUI/MIS/MASS finale usata
+	%                  dalla simulazione; secondo output per non rompere le
+	%                  chiamate esistenti "RES = simulator(config)". Usata da
+	%                  traj_problem.m/eval_fgh.m per accedere a other.MIS
+	%                  (target di missione) e other.ENV (mu, Req) senza
+	%                  rileggere i CSV una seconda volta.)
 
 	% -------------------------------------------------------------------
 	% 1. Lettura input e mapping: CSV (convenzione codice) -> 'other'
+	%    (oppure 'other' gia' pronta, passata da config.other)
 	% -------------------------------------------------------------------
-	other = interface(config.input_dir);
+	if isfield(config, 'other') && ~isempty(config.other)
+		other = config.other;
+	else
+		other = interface(config.input_dir);
+	end
 
 	if ~isfield(config, 'tmax_phase') || isempty(config.tmax_phase)
 		% Limite superiore di tspan per fase: sufficiente a coprire la fase
