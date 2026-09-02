@@ -16,13 +16,18 @@ Per ciascuno di questi eventi è scritta un riga:
 ## Nome evento
 Massimo **12 caratteri**, maiuscolo, nessuno spazio (per restare leggibile nella
 colonna a larghezza fissa). Convenzione usata da `write_log.m`:
-- inizio/fine fase: `P<n>_START` / `P<n>_END`, `<n>` = numero di fase 1..6
-  (es. `P3_START`, `P4_END`)
+- inizio/fine fase: `P<n>_START` / `P<n>_END`, `<n>` = numero di fase 1..8
+  (es. `P3_START`, `P4_END`). Le fasi 7-8 sono istantanee (CLAUDE.md §5): una
+  sola riga di `RES` ciascuna, quindi `P7_START`/`P7_END` (e `P8_START`/
+  `P8_END`) coincidono sulla stessa riga.
 - pressione dinamica massima: `MAXQ`
 - raggiungimento Mach 1: `MACH1`
 - terminazione simulazione (messaggio esplicito da `simulator.m`, non dedotto):
-  `END_CRASH` (quota=0), `END_APOGEE` (apogeo target raggiunto, fase 6),
-  `END_PROP2` (propellente stadio 2 esaurito, fase 6)
+  `END_CRASH` (quota=0), `END_PROP2` (propellente stadio 2 esaurito, fase 6),
+  `END_INSERTION` (apogeo/perigeo/inclinazione target centrati entro
+  tolleranza a fine fase 8), `END_INSERTION_PARTIAL` (fase 8 raggiunta ma
+  propellente stadio 2 insufficiente a centrare il target entro tolleranza:
+  burn saturato, non un errore)
 
 ## Lista delle variabili da riportare e precisione
 - nome evento

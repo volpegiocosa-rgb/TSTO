@@ -139,6 +139,7 @@ La maggior parte degli output è contenuta nella struct `RES`, costruita da `cre
 | `RES.theIncidence` | Incidence: componente in piano di pitch dell'AoA totale, rispetto all'assetto comandato corrente | rad | richiesto da `plot_list.md` |
 | `RES.theSideslip` | Sideslip: componente in piano di yaw dell'AoA totale, rispetto all'assetto comandato corrente | rad | richiesto da `plot_list.md` |
 | `RES.theApogeeAltitude` | Quota di apogeo dell'orbita osculante corrente | m | richiesto da `plot_list.md` |
+| `RES.thePerigeeAltitude` | Quota di perigeo dell'orbita osculante corrente | m | popolato da `eval_perigee_altitude.m`, verifica il target di fase 8 |
 | `RES.theInclination` | Inclinazione orbitale osculante corrente | rad | richiesto da `plot_list.md` |
 | `RES.theMass` | Massa | kg | |
 | `RES.Flag_HSSep` | Flag separazione fairing | N/A | |
@@ -158,15 +159,9 @@ La maggior parte degli output è contenuta nella struct `RES`, costruita da `cre
 Sorgente di verità: il **codice** (`guidance.m`). La fase 0 (Lift-off) **non è simulata**
 (calcolata in `simulator.m`, vedi CLAUDE.md §5).
 
-| Fase | Nome | `guidance.m` case | `RES.theGuidFlag` | `active_stage` | `RES.stage` |
-|------|------|-------------------|-------------------|----------------|-------------|
-| 0 | Lift-off | — (non simulata) | — | 1 | 1 |
-| 1 | Vertical-rise | `case 1` | 1 | 1 | 1 |
-| 2 | Pitch over | `case 2` | 2 | 1 | 1 |
-| 3 | Transizione al gravity turn | `case 3` | 3 | 1 | 1 |
-| 4 | Gravity turn | `case {4,5}` | 4 | 1 (brucia `MOT(1)` fino a esaurimento = trigger) | 1 |
-| 5 | Coasting | `case {4,5}` | 5 | **2** (switch a fine fase 4) | 20 |
-| 6 | Insertion in transfer orbit | `case 6` | 6 | 2 | 2 |
+### 3.4 Input per ottimizzatore
+Vedi §5.1 di questo file.
+Definiti per qualsiasi condizione di arresto di `simulator.m`
 
 ---
 
@@ -202,3 +197,10 @@ Sorgente di verità: il **codice** (`guidance.m`). La fase 0 (Lift-off) **non è
 - Distinzione fase 4 (gravity turn) vs fase 5 (coasting): stesso `case {4,5}` in `guidance.m`,
   ma `theGuidFlag` deve valere 4 o 5 in base a `phase`, non al `case`.
 - Formato file di output CSV (ordine colonne, header) per `/output`: da definire.
+
+## 5.1 Definizione input per ottimizzatore
+- definere `OPT.f` (per `min(f)`)  -->  -massa PL
+- definire `OPT.g` (vincoli g ≤ 0) --> al momento vuoto (placeholder)
+- definire `OPT.h` (vincoli h = 0) -->  (1) `perigee_altitude_target` - perigee_altitude_achieved
+                                        (2) `apogee_altitude_target` - apogee_altitude_achieved 
+                                        (3) `target_orbital_inclination` - achieved_target_orbit						   						   

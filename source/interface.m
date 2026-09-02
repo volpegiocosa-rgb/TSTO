@@ -60,10 +60,10 @@ function other = interface(input_dir)
 	other.MASS.Minert2  = LV.Minert2;
 	other.MASS.MProp1   = LV.MProp1;
 	other.MASS.MProp2   = LV.MProp2;
-	% Massa payload: nessun campo dedicato nella specifica/nei CSV.
-	% M0 (550000 kg) = Minert1+Minert2+MProp1+MProp2+Mfairing (548100+1900),
-	% quindi si assume payload = 0 kg (default documentato, non nascosto).
-	other.MASS.Mpayload = 0;
+	% Massa payload: campo Mpayload in LV.csv (M0 e' documentato "escl.
+	% payload", quindi Mpayload si somma esplicitamente a M0 in
+	% init_state.m per il mass budget totale al lift-off).
+	other.MASS.Mpayload = LV.Mpayload;
 
 	% -------------------------------------------------------------------
 	% 3. AER (aerodinamica) -> other.AER   [griglia 2D Cd(Mach, AoA)]

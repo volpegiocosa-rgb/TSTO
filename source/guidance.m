@@ -83,6 +83,33 @@ function uIn = guidance(MIS, ENV, GUI, t, pos, vel, AoA, relative_speed, phase)
 			uOl = setOl(pitch, yaw);
 			uIn = GUI.InOl * uOl;
 
+		case 7  % Keplerian transfer (coast to apogee): fase istantanea, NON
+			% integrata da ode45/eom.m (CLAUDE.md §5) - guidance.m qui non
+			% pilota alcuna dinamica, viene chiamata solo da create_output.m
+			% per ricostruire pitch/yaw/AoA di reporting sulla riga sintetica
+			% di fase 7. Nessun vincolo fisico (fase non propulsa): assetto
+			% di reporting allineato alla velocita' relativa corrente (un
+			% salto rispetto all'assetto di fine fase 6 e' accettabile).
+			uIn = vers(relative_speed);
+
+		case 8  % injection in target orbit: fase istantanea, NON integrata
+			% da ode45/eom.m (CLAUDE.md §5) - stesso discorso del case 7:
+			% guidance.m qui serve solo al reporting di create_output.m.
+			% Assetto di reporting = direzione del delta-v richiesto per
+			% centrare l'orbita target (stessa geometria usata dal burn
+			% reale in simulator.m/injection_target_orbit.m, tramite
+			% eval_injection_delta_v.m: nessuna duplicazione).
+			required_dv = eval_injection_delta_v(pos, vel, ...
+				MIS.apogee_altitude_target, MIS.perigee_altitude_target, ...
+				MIS.target_orbital_inclination, ENV);
+			if norm(required_dv) > 1e-9
+				uIn = vers(required_dv);
+			else
+				% gia' in orbita target: direzione del delta-v indefinita,
+				% si riporta l'assetto allineato alla velocita' corrente.
+				uIn = vers(vel);
+			end
+
 		otherwise
 			error('guidance:invalidPhase', ...
 			      'Fase di guida non valida: %g', phase);

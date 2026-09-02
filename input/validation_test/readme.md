@@ -31,28 +31,40 @@ Con i CSV di questa cartella, lanciando:
 octave --no-gui --eval "addpath('source'); config.input_dir='input/validation_test'; config.silent=true; RES=simulator(config); write_output_csv(RES,'output');"
 ```
 si ottiene, verificato:
-- Attraversamento completo delle fasi 1→6 (nessun blocco), trigger corretti (nessun evento spurio).
+- Attraversamento completo delle fasi 1→8 (nessun blocco), trigger corretti (nessun evento spurio).
+  Le fasi 7 (Keplerian transfer) e 8 (Injection in target orbit) sono state aggiunte
+  successivamente al primo run di questo dataset (CLAUDE.md §5): sono **istantanee**
+  (una sola riga ciascuna in `RES`, non integrate via `ode45`), quindi la missione ora
+  prosegue oltre l'apogeo target invece di fermarsi lì.
 - Staging: `active_stage` 1→2 a fine fase 4 (t≈142 s), `RES.stage` coerente con la tabella unica CLAUDE.md §5.
 - Nessun `NaN`/numero immaginario in nessun campo di `RES`.
-- Massa monotona non crescente (con il salto atteso alla separazione 1° stadio+fairing), quota sempre ≥0.
-- **Chiusura di missione per apogeo raggiunto** (non crash, non esaurimento propellente):
-  fine simulazione a t≈239 s, quota≈267.5 km, massa≈100.3 t, apogeo osculante finale = 400.000 km = `MIS.apogee_altitude_target`.
+- Massa monotona non crescente, con **due** salti attesi: separazione 1° stadio+fairing
+  (fine fase 4) e consumo propellente del burn impulsivo di injection (fase 8); quota sempre ≥0.
+- **Chiusura di missione per injection completata** (`END_INSERTION`, non crash, non
+  esaurimento propellente): fine simulazione a t≈442.8 s, quota≈404.8 km, massa
+  finale≈24.1 t (ben sopra il floor `Minert2+Mpayload`=8 t: propellente stadio 2 non
+  esaurito, margine residuo).
+  Fase 6 (`Boost 1`) porta l'apogeo osculante a 400.000 km (target) lasciando il
+  perigeo ancora molto basso/suborbitale (orbita di trasferimento eccentrica); fase 7
+  (`LCP`) propaga kepleriano fino all'apogeo reale di quell'orbita; fase 8 (`Boost 2`)
+  esegue il burn impulsivo di circolarizzazione/correzione piano — pattern standard a
+  due burn (Hohmann-like). Risultato **entro tolleranza sui tre target** (1 km in
+  quota, 0.1° in inclinazione): `RES.theApogeeAltitude(end)`=400.000 km,
+  `RES.thePerigeeAltitude(end)`=200.000 km = `MIS.perigee_altitude_target`,
+  `RES.theInclination(end)`=28.5000° ≈ `MIS.target_orbital_inclination` (28.4999°).
 - `RES.theInclination`: parte da ≈28.40° (non 28.562°: è la latitudine
   **geocentrica**, non geodetica, coerente con `geo2cart`/`eval_inclination.m`
   su ellissoide WGS84 — vedi nota sotto) e resta pressoché costante nelle
   fasi 1-5 (il thrust è sempre nel piano di lancio, `yaw` bloccato a
   `GUI.launch_azimuth`: nessuna manovra fuori piano prevista prima della fase
-  6). In fase 6 il PID di piano (`error = target - actual`, qui ≈ +0.10°)
-  la muove nella direzione corretta (crescente verso il target), ma di
-  un'entità piccola (~0.0016° su 39 s di burn fase 6, dati GUIDANCE_VARS.csv
-  nominali): il target non viene raggiunto entro la finestra di missione.
-  **Non trattato come bug**: il verso della correzione è corretto e il
-  codice (`eval_inclination.m`, `guidance.m` case 6, `PID_actuation.m`) è
-  stato riletto e non presenta errori evidenti; l'entità ridotta può essere
-  dovuta a guadagni `plane_controller` non ottimizzati (§10.1: "set nominale,
-  non ottimizzato") o al tempo di burn insufficiente. Segnalato all'utente,
-  non corretto senza indicazione esplicita (i guadagni sono condivisi con
-  altri comportamenti di fase 6, es. l'AoA di inserimento).
+  6). In fase 6 il PID di piano la muove di un'entità piccola (~28.41° a fine
+  fase 6, non ancora a target): **non era trattato come bug** nella prima versione
+  di questo test (fasi 1-6 soltanto, mancava la correzione finale). Con le fasi
+  7-8 aggiunte, il burn impulsivo di fase 8 (`injection_target_orbit.m`) seleziona
+  esplicitamente il piano orbitale compatibile con `MIS.target_orbital_inclination`,
+  e l'inclinazione finale converge al target (28.50°): la correzione residua che
+  mancava al PID di fase 6 viene chiusa dalla fase 8, per costruzione del design a
+  due burn.
 
 ### Nota: latitudine geocentrica vs geodetica
 `eval_inclination.m` calcola `acos(h_z/|h|)` da `pos`/`vel` cartesiani

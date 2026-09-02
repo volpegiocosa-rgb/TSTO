@@ -21,7 +21,8 @@ Valori per **singolo motore** (il codice moltiplica per `n_engine`).
 |-------|--------|-------|
 | `Sref` | 10.52 m² | area frontale, Ø 3.66 m |
 | `Mfairing` | 1900 kg | fairing Falcon 9 |
-| `M0` | 550000 kg | massa al liftoff, **esclusa P/L** |
+| `Mpayload` | 4000 kg | payload ipotetico, **non da fonte SpaceX**: nessun dataset originario definiva una massa payload (serve alle fasi 7-8, injection in target orbit); valore scelto come ordine di grandezza plausibile per questo lanciatore, documentato per CLAUDE.md §10.1 |
+| `M0` | 550000 kg | massa al liftoff, **esclusa P/L** (P/L si somma esplicitamente in `init_state.m`) |
 | `Minert1/2` | 25600 / 4000 kg | masse a secco per stadio |
 | `MProp1/2` | 411000 / 107500 kg | propellente per stadio |
 | `Thrust1` | 981 kN | Merlin 1D, spinta vuoto (per motore) |

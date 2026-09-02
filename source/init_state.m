@@ -7,8 +7,8 @@ function y0 = init_state(other)
 	%            frame In (ECEF/ECI congelato a t0).
 	% Velocita' : velocita' di co-rotazione con la Terra (il pad e' fermo
 	%            rispetto al suolo, ma il frame In e' inerziale).
-	% Massa     : M0 (esclusa payload) + Mpayload (assunta 0 kg, non
-	%            fornita da nessun CSV: vedi nota in interface.m).
+	% Massa     : M0 (esclusa payload) + Mpayload (letta da LV.csv, vedi
+	%            interface.m).
 	% Delta-v   : 0.
 	%
 	% Input  : other  (struct ENV/AER/MOT/GUI/MIS/MASS)

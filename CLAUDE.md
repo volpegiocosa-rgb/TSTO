@@ -78,6 +78,7 @@ Il comando deve restituire **zero righe**. Qualsiasi match indica sintassi Octav
 - **`create_output.m`** — dagli output di `eom.m` all'interno di `simulator.m` crea **gli output** previsti dalla **specifica di interfaccia**.
 - **`plotter.m`** — chiamato da `simulator.m`, crea i grafici se non è silenziato.
 - **`write_log.m`** — chiamato da `simulator.m`, crea la tabella `tab.out` come descritta da `log_tab.md` se non è silenziato.
+- **`eval_fgh.m`** - chiamato da `simulator.m` genera gli input necessati allì'ottimizzatore.
 
 Flusso: `simulator.m` → `interface.m` (mapping input) → `eom.m` → `guidance.m` → `create_output.m` → `plotter.m`.
 
@@ -119,15 +120,17 @@ Il raggiungimento di un **trigger** fa passare alla fase successiva.
 ### Tabella unica: fase ↔ `theGuidFlag` ↔ `case guidance.m` ↔ `active_stage`
 Sorgente di verità: il **codice** (`guidance.m`). Il flag di output `RES.theGuidFlag` è allineato ai `case`.
 
-| Fase | Nome | `guidance.m` case | `RES.theGuidFlag` | `active_stage` |
-|------|------|-------------------|-------------------|----------------|
-| 0 | Lift-off | — (non simulata) | — | 1 |
-| 1 | Vertical-rise | `case 1` | 1 | 1 |
-| 2 | Pitch over | `case 2` | 2 | 1 |
-| 3 | Transizione al gravity turn | `case 3` | 3 | 1 |
-| 4 | Gravity turn | `case {4,5}` | 4 | 1 (brucia `MOT(1)` fino a esaurimento = trigger) |
-| 5 | Coasting | `case {4,5}` | 5 | **2** (switch a fine fase 4: separazione 1° stadio) |
-| 6 | Insertion in transfer orbit | `case 6` | 6 | 2 |
+| Fase | Nome | `guidance.m` case | `RES.theGuidFlag` | `active_stage` |  fase propulsa  | (I)ntegrata / i(S)tantanea | Nome per `log_tab` | 
+|------|------|-------------------|-------------------|----------------|-----------------|----------------------------|--------------------|
+| 0 | Lift-off | N/A | — | 1 | Y | S | `Lift-off`
+| 1 | Vertical-rise | `case 1` | 1 | 1 | Y | I | `Vertical F.`
+| 2 | Pitch over | `case 2` | 2 | 1 | Y | I | `Pitch-Over`
+| 3 | Transizione al gravity turn | `case 3` | 3 | 1 | Y | I | `To GT`
+| 4 | Gravity turn | `case 4` | 4 | 1 (brucia `MOT(1)` fino a esaurimento = trigger) | Y | I | `Gravity Turn`
+| 5 | Coasting | `case 5` | 5 | **2** (switch a fine fase 4: separazione 1° stadio) | N | I | `Coasting`
+| 6 | Insertion in transfer orbit | `case 6` | 6 | 2 | Y | I | `Boost 1`
+| 7 | Keplerian transfer          | N/A | 7 | 2 | N | S | `LCP`
+| 8 | Injection in target orbit   | `case 8` | 8 | 2 | Y | S | `Boost 2`
 
 ### Altri trigger
 - Se in una fase **da 1 a 4** il propellente del primo stadio finisce → passa **subito alla fase 5**.
@@ -176,8 +179,9 @@ guidance(MIS, ENV, GUI, t, pos, vel, AoA, relative_speed, phase)      -> uIn
 create_output(T, Y, other)                                            -> RES
 plotter(T, Y, RES, input_dir)                                         -> genera i grafici descritti in `plot_list.md`,
                                                                           salvati come PNG in `/output/<nome_cartella_input_dir>`
-write_log(T, Y, RES, termination_reason, input_dir)				  -> genera la tabella descritta `log_tab.md`,
-                                                                          salvati come TXT in `/output/<nome_cartella_input_dir>`							  
+write_log(T, Y, RES, termination_reason, input_dir)				      -> genera la tabella descritta `log_tab.md`,
+                                                                          salvati come TXT in `/output/<nome_cartella_input_dir>`	
+eval_fgh(T,Y)                                                         -> OPT (§5.1 di interface_specification)																		  
 ```
 
 **Regola di mapping**: il codice di calcolo (`eom.m`, `guidance.m`) usa **solo** i nomi interni

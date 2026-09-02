@@ -60,8 +60,9 @@ function RES = create_output(T, Y, other, phase_track)
 	theDV_Prop  = zeros(N, 1);
 	theIncidence      = zeros(N, 1);
 	theSideslip       = zeros(N, 1);
-	theApogeeAltitude = zeros(N, 1);
-	theInclination    = zeros(N, 1);
+	theApogeeAltitude  = zeros(N, 1);
+	thePerigeeAltitude = zeros(N, 1);
+	theInclination     = zeros(N, 1);
 	theMass     = Y(:, 7);
 	Flag_HSSep  = false(N, 1);
 	Flag_MPLSep = false(N, 1);
@@ -78,18 +79,21 @@ function RES = create_output(T, Y, other, phase_track)
 		phase = phase_track(k);
 
 		% fase -> theGuidFlag / stage / active_stage / isignite (CLAUDE.md
-		% §5 "Tabella unica" / interface_specification.md §3.3)
+		% §5 "Tabella unica" / interface_specification.md §3.3). Fase 7
+		% (Keplerian transfer) e' coasting non propulso come la fase 5,
+		% quindi stesso row_stage=20; fase 8 (injection) e' propulsa,
+		% stage 2, come la fase 6.
 		if phase <= 4
 			active_stage = 1;
 			row_stage    = 1;
-		elseif phase == 5
+		elseif phase == 5 || phase == 7
 			active_stage = 2;
 			row_stage    = 20;
 		else
 			active_stage = 2;
 			row_stage    = 2;
 		end
-		isignite_row = (phase ~= 5);
+		isignite_row = ~(phase == 5 || phase == 7);
 
 		lla = cart2geo(pos, ENV.wgs84);
 		altitude_q = min(max(lla(3), min(ENV.altitude)), max(ENV.altitude));
@@ -150,8 +154,9 @@ function RES = create_output(T, Y, other, phase_track)
 		% eval_aerodynamic_angle.m).
 		[incidence, sideslip] = eval_aerodynamic_angle(relative_speed, pos, u);
 
-		apogee_altitude = eval_apogee_altitude(pos, vel, ENV.mu, ENV.Req);
-		inclination     = eval_inclination(pos, vel, ENV);
+		apogee_altitude  = eval_apogee_altitude(pos, vel, ENV.mu, ENV.Req);
+		perigee_altitude = eval_perigee_altitude(pos, vel, ENV.mu, ENV.Req);
+		inclination      = eval_inclination(pos, vel, ENV);
 
 		theMdot(k)     = mass_flow_rate;
 		theAltitude(k) = lla(3);
@@ -173,8 +178,9 @@ function RES = create_output(T, Y, other, phase_track)
 		theNGV(k)      = acc_mag;
 		theIncidence(k)      = incidence;
 		theSideslip(k)       = sideslip;
-		theApogeeAltitude(k) = apogee_altitude;
-		theInclination(k)    = inclination;
+		theApogeeAltitude(k)  = apogee_altitude;
+		thePerigeeAltitude(k) = perigee_altitude;
+		theInclination(k)     = inclination;
 		stage(k)       = row_stage;
 		Flag_HSSep(k)  = (phase >= 5);   % fairing rilasciata con lo stadio 1 (fine fase 4)
 		Flag_MPLSep(k) = false;          % deployment payload non simulato (fuori scope)
@@ -242,8 +248,9 @@ function RES = create_output(T, Y, other, phase_track)
 	RES.theDV_Prop  = theDV_Prop;
 	RES.theIncidence      = theIncidence;
 	RES.theSideslip       = theSideslip;
-	RES.theApogeeAltitude = theApogeeAltitude;
-	RES.theInclination    = theInclination;
+	RES.theApogeeAltitude  = theApogeeAltitude;
+	RES.thePerigeeAltitude = thePerigeeAltitude;
+	RES.theInclination     = theInclination;
 	RES.theMass     = theMass;
 	RES.Flag_HSSep  = Flag_HSSep;
 	RES.Flag_MPLSep = Flag_MPLSep;
