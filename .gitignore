@@ -1,0 +1,6 @@
+# Artefatti di compilazione oct-file (source/native/): rigenerati da
+# mkoctfile, non portabili tra piattaforme/versioni di Octave -- vedi
+# source/native/README.md per le istruzioni di build.
+*.oct
+*.mod
+*.o

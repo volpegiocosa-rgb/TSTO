@@ -9,12 +9,16 @@
 % generazione dell'ottimizzatore DE esterno che sostituira' il loop
 % dimostrativo sotto).
 %
-% x0 e' qui inizializzato con gli stessi valori di GUIDANCE_VARS.csv del
-% dataset (letti da other.GUI, gia' popolata da interface.m): serve solo a
-% verificare il round-trip (stesso risultato del run diretto di
-% simulator.m/eval_fgh.m), non e' un punto ottimizzato.
+% x0 e' qui inizializzato con gli stessi valori nominali di GUIDANCE_VARS.csv
+% + LV.csv del dataset (letti da other.GUI/other.MASS, gia' popolate da
+% interface.m): serve solo a verificare il round-trip (stesso risultato del
+% run diretto di simulator.m/eval_fgh.m), non e' un punto ottimizzato.
+% x ha 11 componenti (rif. header traj_problem.m): plane_controller_kd/ki
+% NON sono piu' variabili di design (restano fisse in other.GUI), Mpayload
+% (other.MASS.Mpayload) e' la 11a componente al posto loro.
 
 addpath(fileparts(mfilename('fullpath')));
+addpath(fullfile(fileparts(mfilename('fullpath')), 'native'));
 
 if ~exist('config', 'var') || isempty(config)
 	config = struct();
@@ -29,8 +33,10 @@ end
 other = interface(config.input_dir);
 
 % ---------------------------------------------------------------------
-% 2. x0: variabili di guida di baseline, lette da other.GUI (stesso
-%    ordine di traj_problem.m / GUIDANCE_VARS.csv)
+% 2. x0: variabili di design di baseline, lette da other.GUI/other.MASS
+%    (stesso ordine di traj_problem.m, 10 componenti -- pitch_at_transition
+%    rimossa: derivata automaticamente da simulator.m a fine fase 2, non
+%    piu' una variabile di design libera, vedi header traj_problem.m)
 % ---------------------------------------------------------------------
 x0 = [other.GUI.zkick; ...
       other.GUI.pitch_over_starting; ...
@@ -38,12 +44,10 @@ x0 = [other.GUI.zkick; ...
       other.GUI.pitch(2); ...
       other.GUI.transition_starting; ...
       other.GUI.pitch_rate_transition; ...
-      other.GUI.pitch_at_transition; ...
       other.GUI.insertion_starting; ...
       other.GUI.AoA_rate; ...
       other.GUI.plane_controller(1); ...
-      other.GUI.plane_controller(2); ...
-      other.GUI.plane_controller(3)];
+      other.MASS.Mpayload];
 
 % ---------------------------------------------------------------------
 % 3. Valutazione di traj_problem su x0 ('other' riutilizzabile per tutte

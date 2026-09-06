@@ -8,7 +8,7 @@ function [RES, other] = simulator(config)
 	%   2) fase 0 (lift-off) NON simulata: si calcola il propellente da bruciare
 	%      per raggiungere il trigger (puo' risultare t = 0 s)
 	%   3) loop sulle fasi 1..8 (con eventuale salto 1-4 -> 5 per esaurimento
-	%      propellente anticipato); fasi 1-6 interrotte da un event ode45,
+	%      propellente anticipato); fasi 1-6 interrotte da un event rk5.m,
 	%      fasi 7-8 istantanee (nessuna integrazione, CLAUDE.md §5)
 	%   4) create_output.m -> RES ; plotter.m -> grafici
 	%
@@ -25,7 +25,9 @@ function [RES, other] = simulator(config)
 	%                                priorita' su config.input_dir e
 	%                                interface.m NON viene richiamata
 	%          e opzioni di run, es. config.tmax_phase, config.silent,
-	%          config.AbsTol, config.RelTol)
+	%          config.tmin, config.tmax (passo min/max di rk5.m, sessione
+	%          fix-ode-hang -- sostituiscono config.AbsTol/RelTol di ode45,
+	%          rimossi))
 	% Output : RES    (struct dei risultati; segue interface_specification.md)
 	%          other  (opzionale, struct ENV/AER/MOT/GUI/MIS/MASS finale usata
 	%                  dalla simulazione; secondo output per non rompere le
@@ -53,26 +55,30 @@ function [RES, other] = simulator(config)
 		config.tmax_phase = 1000;
 	end
 
-	if ~isfield(config, 'AbsTol') || isempty(config.AbsTol)
-		% Default individuato da un test di sensitivita' AbsTol/RelTol
-		% (griglia 2D AbsTol/RelTol in {1e-6,1e-8,1e-10} su
-		% input/validation_test, poi affinata su RelTol in
-		% {1e-6,5e-7,1e-7,5e-8,1e-8} ad AbsTol fisso, confrontando contro il
-		% run piu' stretto come riferimento). Risultato: RelTol domina la
-		% convergenza, AbsTol e' quasi ininfluente nel range testato (le
-		% grandezze di stato sono su scala ~1e6-1e7 m / km/s). Il vincolo
-		% piu' stringente e' il delta-v propulsivo accumulato
-		% (RES.theDV_Prop, integrale trapezoidale post-hoc sensibile alla
-		% spaziatura dei passi accettati): resta entro 0.1 m/s solo da
-		% RelTol=1e-8 in giu' (1e-7/5e-7/5e-8 falliscono su questo pur con
-		% quota/velocita'/tempo gia' convergenti). 1e-8/1e-8 e' quindi il
-		% valore piu' largo (economico, ~600 passi vs ~1100 per 1e-10) che
-		% rispetta tutte le soglie fisiche (quota apogeo <1 m, |v| <0.1 m/s,
-		% t finale <0.01 s, delta-v <0.1 m/s).
-		config.AbsTol = 1e-8;
+	% NOTA (rif. CLAUDE.md solver_project S11 Fase 5, sessione fix-ode-hang):
+	% i default AbsTol/RelTol per ode45 (calibrati con lo studio di
+	% sensitivita' descritto nelle sessioni precedenti) sono stati RIMOSSI
+	% insieme alla chiamata a ode45 -- rk5.m (passo cinematico, non
+	% controllo d'errore locale) li sostituisce con tmin/tmax sotto.
+	% traj_problem.m puo' ancora ricevere/forwardare opts.AbsTol/opts.RelTol
+	% per compatibilita' con chiamate esistenti: se presenti finiscono in
+	% config.AbsTol/config.RelTol mai letti qui, innocuo.
+	if ~isfield(config, 'tmin') || isempty(config.tmin)
+		% TODO: PROVVISORIO -- non calibrato su un run a convergenza, solo
+		% su smoke-test (round-trip nominale + candidato che causava
+		% l'hang di ore). Limita il costo PEGGIORE per fase a
+		% (tmax_phase)/tmin passi: con tmax_phase=1000s di default, 0.05s
+		% da' un tetto di 20000 passi/fase, sufficiente a chiudere in
+		% pochi secondi anche il caso quasi-inerziale che prima si
+		% bloccava per ore.
+		config.tmin = 0.05;
 	end
-	if ~isfield(config, 'RelTol') || isempty(config.RelTol)
-		config.RelTol = 1e-8;
+	if ~isfield(config, 'tmax') || isempty(config.tmax)
+		% TODO: PROVVISORIO -- non calibrato. Passo massimo nei tratti
+		% cinematicamente "calmi" (tau=|v|/|a| grande): compromesso tra
+		% velocita' di calcolo e localizzazione degli eventi (rk5.m
+		% interpola linearmente tra due passi accettati).
+		config.tmax = 2;
 	end
 
 	% -------------------------------------------------------------------
@@ -134,15 +140,65 @@ function [RES, other] = simulator(config)
 			% --- 3c. Fase corrente passata a eom.m/guidance.m via 'other' -
 			other.phase = phase;
 
-			% --- 3d. Event handle specifico della fase -------------------
-			event_fun = @(t, y) phase_event(t, y, other, phase);
+			% --- 3e. Integrazione con passo cinematico (rk5.m) -----------
+			% SOSTITUISCE ode45 (decisione utente, sessione fix-ode-hang,
+			% rif. CLAUDE.md S11 Fase 5). Storia: provato prima ode23s
+			% (semi-implicito, unica alternativa stiff funzionante su
+			% questa build Octave -- ode15s fallisce sempre per sundials
+			% mancante, ode23t/ode113 non esistono senza odepkg) solo
+			% sulla fase 3 sospetta; scartato perche' non risolveva
+			% l'hang in generale e introduceva ~8x di overhead anche sui
+			% casi senza sintomi di stallo (18s -> 146s su un caso
+			% facile). La diagnosi via logging per-eval (real_case/
+			% traj_cost.m) ha poi trovato la causa CONCRETA: un candidato
+			% con pitch_rate_transition~0 rende la fase 3 quasi-inerziale
+			% per una finestra simulata molto lunga -- non un problema di
+			% rigidezza, ma di passo che un controllo d'errore a
+			% tolleranza fissa non riesce a far crescere abbastanza.
+			% rk5.m (RK5 esplicito, passo cinematico via kinematic_step.m,
+			% clippato a [tmin,tmax]) limita il costo peggiore per fase a
+			% un numero di passi FISSO (tmax_phase/tmin), indipendente
+			% dalla fisica del candidato.
+			%
+			% Convenzioni di chiamata (rif. header rk5.m): f e' una
+			% closure 2 argomenti (t,y), stessa forma gia' in uso con
+			% ode45; eventFcn e stepFcn ricevono invece 'other' come
+			% terzo argomento esplicito (rk5.m lo forwarda).
+			%
+			% f_fun/event_fun: eom_native/phase_event_native (kernel
+			% Fortran compilato, native/eom_core.f90 + shim native/
+			% eom_oct.cc, native/phase_event_oct.cc) se i file .oct sono
+			% sul path, altrimenti fallback sulle .m interpretate (rif.
+			% CLAUDE.md solver_project S11 Fase 5, sessione "requisito 5
+			% minuti": misurato 412.9x di speedup su eom.m/guidance.m,
+			% 44.9x su phase_event.m -- overhead dell'interprete Octave
+			% eliminato, non un problema di carico numerico). I parametri
+			% (scalars/InOl/tabelle ENV,AER) sono costanti per l'intera
+			% fase: costruiti UNA VOLTA qui, non ad ogni chiamata dentro
+			% rk5.m. other.eom_fast viene passata anche a
+			% kinematic_step.m (vedi suo header) cosi' anche la sua
+			% chiamata a eom (1/7 per punto accettato, le altre 6 sono
+			% k1..k6 di rk5.m) usa il percorso veloce.
+			if exist('eom_native', 'file') == 3
+				[scalars, InOl, env_alt, env_rho, env_c, env_p, aer_mach, aer_aoa, aer_cd] = ...
+					build_eom_native_params(other);
+				f_fun = @(t, y) eom_native(t, y, scalars, InOl, env_alt, env_rho, ...
+					env_c, env_p, aer_mach, aer_aoa, aer_cd);
+				other.eom_fast = f_fun;
+			else
+				f_fun = @(t, y) eom(t, y, other);
+				other.eom_fast = [];
+			end
+			if exist('phase_event_native', 'file') == 3 && exist('scalars', 'var')
+				event_fun = @(t, y, other) phase_event_native(t, y, scalars, InOl, phase);
+			else
+				event_fun = @(t, y, other) phase_event(t, y, other, phase);
+			end
+			tend = t_start + config.tmax_phase;
 
-			% --- 3e. Integrazione ODE a passo variabile ------------------
-			ode_opts = odeset('Events', event_fun, 'RelTol', config.RelTol, 'AbsTol', config.AbsTol);
-			tspan    = [t_start, t_start + config.tmax_phase];
-
-			[t_ph, y_ph, te, ye, ie] = ode45(@(t, y) eom(t, y, other), ...
-			                                 tspan, y_start, ode_opts); %#ok<ASGLU>
+			[t_ph, y_ph, te, ye, ie] = rk5(f_fun, t_start, config.tmin, ...
+			                                config.tmax, tend, y_start, ...
+			                                other, event_fun, @kinematic_step); %#ok<ASGLU>
 
 			if isempty(ie)
 				error('simulator:noEventTriggered', ...
@@ -179,6 +235,20 @@ function [RES, other] = simulator(config)
 			u_end = guidance(other.MIS, other.ENV, other.GUI, t_start, ...
 			                  y_start(1:3), y_start(4:6), 0, relative_speed_end, phase);
 			[other.GUI.last_pitch, other.GUI.last_yaw] = vect2angleOl(other.GUI.InOl.' * u_end);
+
+			% pitch_at_transition NON e' piu' una variabile di design libera
+			% (rimossa dall'ottimizzazione, decisione utente -- rif.
+			% solver_project/CLAUDE.md S11 Fase 5): si deriva qui,
+			% automaticamente, come l'assetto di pitch effettivamente
+			% raggiunto al termine della fase 2 (stesso last_pitch appena
+			% calcolato sopra). Cosi' la fase 3 (case 3 di guidance.m)
+			% riparte per costruzione in continuita' con dove la fase 2 si
+			% e' davvero fermata, invece che da un valore libero scorrelato
+			% che poteva eccedere il tetto fisico di pi/2 rad (bug aperto
+			% osservato prima di questa modifica).
+			if phase == 2
+				other.GUI.pitch_at_transition = other.GUI.last_pitch;
+			end
 
 			% --- 3h. Decisione della fase successiva ----------------------
 			% Mappa (fase corrente, indice evento scattato) -> azione, secondo
@@ -302,10 +372,43 @@ function [RES, other] = simulator(config)
 	% -------------------------------------------------------------------
 	% 4. Costruzione output e grafici
 	% -------------------------------------------------------------------
-	RES = create_output(T, Y, other, phase_track);
+	% config.minimal_output (rif. CLAUDE.md solver_project S11 Fase 5,
+	% sessione "requisito 5 minuti"): create_output.m ricalcola, in un
+	% secondo loop interpretato su TUTTI i punti T/Y (cart2geo, 3x interp1,
+	% guidance, eval_AoA, interp2 -- la STESSA catena di eom.m), l'intera
+	% storia di reporting (RES.theX/theMach/theAOA/...), anche quando
+	% config.silent=true evita solo plotter.m/write_log.m. Misurato:
+	% dominava il tempo residuo DOPO aver portato eom.m/phase_event.m in
+	% Fortran (7.47s->1.32s con solo eom_native, quasi invariato dopo
+	% anche phase_event_native: 1.30s -- il collo di bottiglia si era
+	% spostato qui, non era piu' l'integrazione). eval_fgh.m (unico
+	% consumatore di RES durante l'ottimizzazione, via traj_problem.m)
+	% legge PERO' solo 4 valori scalari, tutti all'ISTANTE FINALE:
+	% RES.theMass(end), RES.theApogeeAltitude(end), RES.thePerigeeAltitude(end),
+	% RES.theInclination(end) -- verificato leggendo eval_fgh.m, non assunto.
+	% Con config.minimal_output=true si costruiscono SOLO questi 4 campi
+	% (scalari, dall'ultima riga di Y, stesse formule di create_output.m:
+	% eval_apogee_altitude/eval_perigee_altitude/eval_inclination), senza
+	% richiamare create_output.m. Default FALSE (nessuna modifica per i
+	% chiamanti esistenti, es. il round-trip di main.m -- che infatti la
+	% attiva anch'esso passando per traj_problem.m, a riprova che i due
+	% percorsi restituiscono lo stesso risultato, vedi verifica in sessione).
+	if isfield(config, 'minimal_output') && config.minimal_output
+		pos_end = Y(end, 1:3).';
+		vel_end = Y(end, 4:6).';
+		RES = struct();
+		RES.theMass            = Y(:, 7);
+		RES.theApogeeAltitude  = eval_apogee_altitude(pos_end, vel_end, other.ENV.mu, other.ENV.Req);
+		RES.thePerigeeAltitude = eval_perigee_altitude(pos_end, vel_end, other.ENV.mu, other.ENV.Req);
+		RES.theInclination     = eval_inclination(pos_end, vel_end, other.ENV);
+	else
+		RES = create_output(T, Y, other, phase_track);
+	end
 
 	if ~isfield(config, 'silent') || ~config.silent
-		plotter(T, Y, RES, config.input_dir);
-		write_log(T, Y, RES, termination_reason, config.input_dir);
+		if ~isfield(config, 'minimal_output') || ~config.minimal_output
+			plotter(T, Y, RES, config.input_dir);
+			write_log(T, Y, RES, termination_reason, config.input_dir);
+		end
 	end
 end
